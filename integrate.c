@@ -57,9 +57,11 @@ sig_handler(int signo)
 int
 main(int argc, char **argv)
 {
-    int opt, n;
+    int opt;
 
-    double d1, d2;
+    double dx;
+
+	 double sigmadx;
 
     config.verbose = 0;
 
@@ -83,22 +85,11 @@ main(int argc, char **argv)
     atexit(exit_handler);
     signal(SIGINT, sig_handler);
 
-    n = read2(0, &d1, sizeof(d1));
-
-    if (n != sizeof(double)) {
-        if (n == -1)
-            perror("read2()");
-        fatal("input invalid\n");
-    }
-
     for (;;) {
 
         int n;
-        double dx;
 
-        d2 = d1;
-
-        n = read2(0, &d1, sizeof(d1));
+        n = read2(0, &dx, sizeof(dx));
 
         if (n == -1) {
             perror("read2()");
@@ -111,10 +102,10 @@ main(int argc, char **argv)
             break;
         }
 
-        dx = d1 - d2;
+		  sigmadx += dx;
 
-        n = write2(1, &dx, sizeof(dx));
-        if (n != sizeof(dx)) {
+        n = write2(1, &sigmadx, sizeof(sigmadx));
+        if (n != sizeof(sigmadx)) {
             perror("write2()");
             break;
         }
