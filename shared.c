@@ -40,12 +40,14 @@ read2(int fd, void *data, size_t len)
             if (errno == EINTR)
                 continue;
             return (-1);
+        } else if (n == 0) {
+            break;
         }
         done += n;
         left -= n;
     }
 
-    return (0);
+    return done;
 }
 
 void *

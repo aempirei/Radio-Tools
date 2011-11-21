@@ -16,18 +16,24 @@
 #include "shared.h"
 
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
+#define CURSOR_ON "\033[?25h"
+#define CURSOR_OFF "\033[?25l"
+#define SAVE_POS "\033[s"
+#define RESTORE_POS "\033[u"
+#define RETURN_HOME "\033[H"
 
 struct config {
-	int fft_sz;
-	long long frequency;
-	long long bandwidth;
-	long long filter_bandwidth;
-	int verbose;
+    int fft_sz;
+    long long frequency;
+    long long bandwidth;
+    long long filter_bandwidth;
+    int verbose;
 } config;
 
 fftw_plan forward, reverse;
 fftw_complex *fi, *fo;
-double *samples1, *samples2;
+double *samples1, *samples2, *samples0;
+size_t samples_sz;
 
 void
 fft_abs(fftw_complex * fft)
@@ -44,30 +50,32 @@ double
 bin_freq(unsigned int binno)
 {
 
-	int n = (binno + config.fft_sz / 2) % config.fft_sz;
+    int n = (binno + config.fft_sz / 2) % config.fft_sz;
 
-	double hi_freq = (double)config.frequency + config.bandwidth / 2.0;
-	double lo_freq = (double)config.frequency - config.bandwidth / 2.0;
+    double hi_freq = (double)config.frequency + config.bandwidth / 2.0;
+    double lo_freq = (double)config.frequency - config.bandwidth / 2.0;
 
-	double c = (double)n / (config.fft_sz - 1);
+    double c = (double)n / (config.fft_sz - 1);
 
-	double a = (1.0 - c) * lo_freq;
-	double b = c * hi_freq;
+    double a = (1.0 - c) * lo_freq;
+    double b = c * hi_freq;
 
-	return a + b;
+    return a + b;
 }
 
-void fft_bandpass_filter(fftw_complex *fft, long long filter_bandwidth) {
+void
+fft_bandpass_filter(fftw_complex * fft, long long filter_bandwidth)
+{
 
-	int i;
+    int i;
 
-	for (i = 0; i < config.fft_sz; i++) {
-		double hz = bin_freq(i);
-		if( (hz < (double)(config.frequency - filter_bandwidth / 2)) || (hz > (double)(config.frequency + filter_bandwidth / 2)) ) {
-			fft[i][0] = 666.0;
-			fft[i][1] = 666.0;
-		}
-	}
+    for (i = 0; i < config.fft_sz; i++) {
+        double hz = bin_freq(i);
+        if ((hz < (double)(config.frequency - filter_bandwidth / 2)) || (hz > (double)(config.frequency + filter_bandwidth / 2))) {
+            fft[i][0] = 0.0;
+            fft[i][1] = 0.0;
+        }
+    }
 }
 
 double
@@ -134,138 +142,190 @@ usage(const char *arg0)
     printf("\tbandwidth    bandwidth in hz or khz or mhz or ghz\n");
     printf("\tfilter       bandpass filter bandwidth in hz or khz or mhz or ghz\n");
     printf("\tbins         fft bin count\n");
-	 printf("\t-h           show this help\n");
-	 printf("\t-v           verbose\n");
+    printf("\t-h           show this help\n");
+    printf("\t-v           verbose\n");
 
-	 putchar('\n');
+    putchar('\n');
 }
 
-char *hzstring(double v, int res, char *buf, size_t buf_sz) {
+char *
+hzstring(double v, int res, char *buf, size_t buf_sz)
+{
 
-	if(abs(v) < 1000) {
-		snprintf(buf, buf_sz, "%.0fhz", v);
-	} else if(abs(v) < 1000000) {
-		snprintf(buf, buf_sz, "%.*gkhz", res, v / 1000);
-	} else if(abs(v) < 1000000000) {
-		snprintf(buf, buf_sz, "%.*gmhz", res, v / 1000000);
-	} else {
-		snprintf(buf, buf_sz, "%.*gghz", res, v / 1000000000);
-	}
+    if (abs(v) < 1000) {
+        snprintf(buf, buf_sz, "%.0fhz", v);
+    } else if (abs(v) < 1000000) {
+        snprintf(buf, buf_sz, "%.*gkhz", res, v / 1000);
+    } else if (abs(v) < 1000000000) {
+        snprintf(buf, buf_sz, "%.*gmhz", res, v / 1000000);
+    } else {
+        snprintf(buf, buf_sz, "%.*gghz", res, v / 1000000000);
+    }
 
-	return buf;
-}
-
-int bitcount(unsigned long v) {
-	int a = 0;
-	while(v) {
-		a += (v&1);
-		v >>= 1;
-	}
-	return a;
-}
-
-void fatal(const char *format, ...) {
-	va_list ap;
-	va_start(ap, format);
-	vprintf(format, ap);
-	va_end(ap);
-	exit(EXIT_FAILURE);
-}
-
-long long hztoll(const char *str) {
-	long long ll;
-	int n;
-
-	sscanf(str, "%Ld %n", &ll, &n);
-
-	if(toupper(str[n]) == 'K')
-		return ll * 1000;
-	if(toupper(str[n]) == 'M')
-		return ll * 1000000;
-	if(toupper(str[n]) == 'G')
-		return ll * 1000000000;
-	return ll;
+    return buf;
 }
 
 int
-main(int argc, char **argv)
+bitcount(unsigned long v)
 {
-    int i, j;
-	 int opt;
-
-    double hz = 3;
-    double theta = 45;
-
-	 config.verbose = 0;
-
-	 while ((opt = getopt(argc, argv, "vh")) != -1) {
-		 switch (opt) {
-			 case 'v':
-				 config.verbose = 1;
-				 break;
-			 case 'h':
-			 default: /* '?' */
-				 usage(*argv);
-				 exit(EXIT_FAILURE);
-		 }
-	 }
-
-    if (argc - optind < 4) {
-        usage(*argv);
-        exit(EXIT_FAILURE);
+    int a = 0;
+    while (v) {
+        a += (v & 1);
+        v >>= 1;
     }
+    return a;
+}
 
-	 config.frequency = hztoll(argv[optind + 0]);
-	 config.bandwidth = hztoll(argv[optind + 1]);
-	 config.filter_bandwidth = hztoll(argv[optind + 2]);
-	 config.fft_sz = strtoul(argv[optind + 3], NULL, 0);
+void
+fatal(const char *format, ...)
+{
+    va_list ap;
+    va_start(ap, format);
+    vprintf(format, ap);
+    va_end(ap);
+    exit(EXIT_FAILURE);
+}
 
-	 if(config.verbose) {
-	 	char buf[256];
-	 	fprintf(stderr, "fft bin count = %d\n", config.fft_sz);
-		fprintf(stderr, "center frequency = %s\n", hzstring(config.frequency, 3, buf, sizeof(buf)));
-		fprintf(stderr, "singal bandwidth = %s\n", hzstring(config.bandwidth, 3, buf, sizeof(buf)));
-		fprintf(stderr, "filter bandwidth = %s\n", hzstring(config.filter_bandwidth, 3, buf, sizeof(buf)));
-	 }
+long long
+hztoll(const char *str)
+{
+    long long ll;
+    int n;
 
-    fi = fftw_malloc(sizeof(fftw_complex) * config.fft_sz);
-    fo = fftw_malloc(sizeof(fftw_complex) * config.fft_sz);
+    sscanf(str, "%Ld %n", &ll, &n);
 
-	 forward = fftw_plan_dft_1d(config.fft_sz, fi, fo, FFTW_FORWARD, FFTW_MEASURE);
-	 reverse = fftw_plan_dft_1d(config.fft_sz, fo, fi, FFTW_BACKWARD, FFTW_MEASURE);
+    if (toupper(str[n]) == 'K')
+        return ll * 1000;
+    if (toupper(str[n]) == 'M')
+        return ll * 1000000;
+    if (toupper(str[n]) == 'G')
+        return ll * 1000000000;
+    return ll;
+}
 
-	 samples1 = malloc(sizeof(double) * config.fft_sz);
-	 samples2 = malloc(sizeof(double) * config.fft_sz);
-
-    setvbuf(stdout, NULL, _IONBF, 0);
-
-	 if(1) { //for(;;) {
-
-		 for (i = 0; i < config.fft_sz; i++) {
-			 fi[i][0] = cos(hz * 2.0 * M_PI * (double)(i + (theta * config.fft_sz / 360)) / config.fft_sz);
-			 fi[i][1] = 0.0;
-		 }
-
-		 fftw_execute(forward);
-
-		 fft_bandpass_filter(fo, config.filter_bandwidth);
-
-		 fftw_execute(reverse);
-
-		 for (j = 0; j < config.fft_sz; j++) {
-			 char buf[256];
-			 double a = fo[i][0];
-			 double b = fo[i][1];
-			 i = (j + config.fft_sz / 2) % config.fft_sz;
-			 printf("bin %03i %9s %+6.1f %+6.1f %+6.1f %6.1f\n", i, hzstring(bin_freq(i), 5, buf, sizeof(buf)), a, b, hypot(a, b), atan2(b, a) * 180.0 / M_PI);
-		 }
-	 }
+void
+exit_handler()
+{
 
     fftw_destroy_plan(forward);
     fftw_destroy_plan(reverse);
 
     fftw_free(fi);
     fftw_free(fo);
+
+    fputs("\033[32B", stderr);
+
+    fputs(CURSOR_ON, stderr);
+}
+
+int
+main(int argc, char **argv)
+{
+    int i, j, opt;
+    int offset;
+
+    config.verbose = 0;
+
+    while ((opt = getopt(argc, argv, "vh")) != -1) {
+        switch (opt) {
+        case 'v':
+            config.verbose = 1;
+            break;
+        case 'h':
+        default:               /* '?' */
+            usage(*argv);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    if (argc - optind < 4) {
+        usage(*argv);
+        exit(EXIT_FAILURE);
+    }
+
+    config.frequency = hztoll(argv[optind + 0]);
+    config.bandwidth = hztoll(argv[optind + 1]);
+    config.filter_bandwidth = hztoll(argv[optind + 2]);
+    config.fft_sz = strtoul(argv[optind + 3], NULL, 0);
+
+    if (config.verbose) {
+        char buf[256];
+        fprintf(stderr, "fft bin count = %d\n", config.fft_sz);
+        fprintf(stderr, "center frequency = %s\n", hzstring(config.frequency, 3, buf, sizeof(buf)));
+        fprintf(stderr, "singal bandwidth = %s\n", hzstring(config.bandwidth, 3, buf, sizeof(buf)));
+        fprintf(stderr, "filter bandwidth = %s\n", hzstring(config.filter_bandwidth, 3, buf, sizeof(buf)));
+    }
+
+    atexit(exit_handler);
+
+    fi = fftw_malloc(sizeof(fftw_complex) * config.fft_sz);
+    fo = fftw_malloc(sizeof(fftw_complex) * config.fft_sz);
+
+    forward = fftw_plan_dft_1d(config.fft_sz, fi, fo, FFTW_FORWARD, FFTW_MEASURE);
+    reverse = fftw_plan_dft_1d(config.fft_sz, fo, fi, FFTW_BACKWARD, FFTW_MEASURE);
+
+    samples_sz = sizeof(double) * config.fft_sz;
+
+    samples0 = malloc(samples_sz);
+    samples1 = malloc(samples_sz);
+    samples2 = malloc(samples_sz);
+
+    setvbuf(stdout, NULL, _IONBF, 0);
+
+    for (offset = 0;; offset += config.fft_sz) {
+
+        int n;
+
+        memcpy(samples2, samples1, samples_sz);
+
+        n = read2(0, samples1, samples_sz);
+        if (n == -1) {
+            perror("read2()");
+            break;
+        } else if (n < samples_sz) {
+            fprintf(stderr, "final samples short of a complete FFT (%d of %d)\n", n / sizeof(double), config.fft_sz);
+            break;
+        }
+
+        offset += samples_sz;
+
+        for (i = 0; i < config.fft_sz; i++) {
+            fi[i][0] = samples1[i];
+            fi[i][1] = 0.0;
+            // cos(hz * 2.0 * M_PI * (double)(i + (theta * config.fft_sz / 360)) / config.fft_sz);
+        }
+
+        fftw_execute(forward);
+
+        fft_bandpass_filter(fo, config.filter_bandwidth);
+
+        fftw_execute(reverse);
+
+        for (i = 0; i < config.fft_sz; i++) {
+            samples0[i] = fo[i][0];
+        }
+
+        n = write2(1, samples0, samples_sz);
+        if (n != samples_sz) {
+            perror("write2()");
+            break;
+        }
+
+        if (config.verbose) {
+            fputs(CURSOR_OFF, stderr);
+            fprintf(stderr, "sample offset: %d\n", offset);
+            for (j = 0; j < config.fft_sz; j++) {
+                char buf[256];
+                double a = fo[i][0];
+                double b = fo[i][1];
+                i = (j + config.fft_sz / 2) % config.fft_sz;
+                fprintf(stderr, "bin %03i %9s %+6.1f %+6.1f %+6.1f %6.1f\n", i, hzstring(bin_freq(i), 5, buf, sizeof(buf)), a, b,
+                        hypot(a, b), atan2(b, a) * 180.0 / M_PI);
+            }
+            fputs("\033[33A", stderr);
+            fputs(CURSOR_ON, stderr);
+        }
+    }
 
     exit(EXIT_SUCCESS);
 }
