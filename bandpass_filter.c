@@ -18,9 +18,8 @@
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #define CURSOR_ON "\033[?25h"
 #define CURSOR_OFF "\033[?25l"
-#define SAVE_POS "\033[s"
-#define RESTORE_POS "\033[u"
 #define RETURN_HOME "\033[H"
+#define CLR_SCR "\033[2J"
 
 struct config {
     int fft_sz;
@@ -28,6 +27,7 @@ struct config {
     long long bandwidth;
     long long filter_bandwidth;
     int verbose;
+    int sliding;
 } config;
 
 fftw_plan forward, reverse;
@@ -143,7 +143,8 @@ usage(const char *arg0)
     printf("\tfilter       bandpass filter bandwidth in hz or khz or mhz or ghz\n");
     printf("\tbins         fft bin count\n");
     printf("\t-h           show this help\n");
-    printf("\t-v           verbose\n");
+    printf("\t-v           verbose (more -v's for more verbosity)\n");
+    printf("\t-s           use overlapping sliding windows for smoother filtering at transform boundaries\n");
 
     putchar('\n');
 }
@@ -213,9 +214,19 @@ exit_handler()
     fftw_free(fi);
     fftw_free(fo);
 
-    fputs("\033[32B", stderr);
+    if (config.verbose) {
+        fputs(CURSOR_ON, stderr);
+		  fputs("\033[100B", stderr);
+        fputs("\ngoodbye...\n", stderr);
+    }
+}
 
-    fputs(CURSOR_ON, stderr);
+void
+sig_handler(int signo)
+{
+    if (signo == SIGINT) {
+        exit(EXIT_FAILURE);
+    }
 }
 
 int
@@ -225,14 +236,18 @@ main(int argc, char **argv)
     int offset;
 
     config.verbose = 0;
+    config.sliding = 0;
 
-    while ((opt = getopt(argc, argv, "vh")) != -1) {
+    while ((opt = getopt(argc, argv, "vhs")) != -1) {
         switch (opt) {
         case 'v':
-            config.verbose = 1;
+            config.verbose++;
+            break;
+        case 's':
+            config.sliding = 1;
             break;
         case 'h':
-        default:               /* '?' */
+        default:
             usage(*argv);
             exit(EXIT_FAILURE);
         }
@@ -248,15 +263,23 @@ main(int argc, char **argv)
     config.filter_bandwidth = hztoll(argv[optind + 2]);
     config.fft_sz = strtoul(argv[optind + 3], NULL, 0);
 
+    if (config.verbose > 1) {
+        fputs(CLR_SCR, stderr);
+        fputs(RETURN_HOME, stderr);
+    }
+
     if (config.verbose) {
         char buf[256];
-        fprintf(stderr, "fft bin count = %d\n", config.fft_sz);
-        fprintf(stderr, "center frequency = %s\n", hzstring(config.frequency, 3, buf, sizeof(buf)));
-        fprintf(stderr, "singal bandwidth = %s\n", hzstring(config.bandwidth, 3, buf, sizeof(buf)));
-        fprintf(stderr, "filter bandwidth = %s\n", hzstring(config.filter_bandwidth, 3, buf, sizeof(buf)));
+        fprintf(stderr, "fft bin count: %d\n", config.fft_sz);
+        fprintf(stderr, "center frequency: %s\n", hzstring(config.frequency, 3, buf, sizeof(buf)));
+        fprintf(stderr, "singal bandwidth: %s\n", hzstring(config.bandwidth, 3, buf, sizeof(buf)));
+        fprintf(stderr, "filter bandwidth: %s\n", hzstring(config.filter_bandwidth, 3, buf, sizeof(buf)));
+        fprintf(stderr, "sliding windows: %s\n", config.sliding ? "true" : "false");
+        fprintf(stderr, "verbosity: %d\n", config.verbose);
     }
 
     atexit(exit_handler);
+    signal(SIGINT, sig_handler);
 
     fi = fftw_malloc(sizeof(fftw_complex) * config.fft_sz);
     fo = fftw_malloc(sizeof(fftw_complex) * config.fft_sz);
@@ -270,7 +293,7 @@ main(int argc, char **argv)
     samples1 = malloc(samples_sz);
     samples2 = malloc(samples_sz);
 
-    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
 
     for (offset = 0;; offset += config.fft_sz) {
 
@@ -279,20 +302,28 @@ main(int argc, char **argv)
         memcpy(samples2, samples1, samples_sz);
 
         n = read2(0, samples1, samples_sz);
+
         if (n == -1) {
             perror("read2()");
             break;
-        } else if (n < samples_sz) {
-            fprintf(stderr, "final samples short of a complete FFT (%d of %d)\n", n / sizeof(double), config.fft_sz);
+        }
+
+        offset += n / sizeof(double);
+
+        if (config.verbose) {
+            fputs(CURSOR_OFF, stderr);
+            fprintf(stderr, "sample offset: %d\n", offset);
+        }
+
+        if (n < samples_sz) {
+            if (n != 0)
+                fprintf(stderr, "\nfinal samples short of a complete FFT (%d of %d)\n", n / sizeof(double), config.fft_sz);
             break;
         }
 
-        offset += samples_sz;
-
         for (i = 0; i < config.fft_sz; i++) {
-            fi[i][0] = samples1[i];
+            fi[i][0] = samples1[i] * 1e19;
             fi[i][1] = 0.0;
-            // cos(hz * 2.0 * M_PI * (double)(i + (theta * config.fft_sz / 360)) / config.fft_sz);
         }
 
         fftw_execute(forward);
@@ -312,17 +343,18 @@ main(int argc, char **argv)
         }
 
         if (config.verbose) {
-            fputs(CURSOR_OFF, stderr);
-            fprintf(stderr, "sample offset: %d\n", offset);
-            for (j = 0; j < config.fft_sz; j++) {
-                char buf[256];
-                double a = fo[i][0];
-                double b = fo[i][1];
-                i = (j + config.fft_sz / 2) % config.fft_sz;
-                fprintf(stderr, "bin %03i %9s %+6.1f %+6.1f %+6.1f %6.1f\n", i, hzstring(bin_freq(i), 5, buf, sizeof(buf)), a, b,
-                        hypot(a, b), atan2(b, a) * 180.0 / M_PI);
+            if (config.verbose > 1) {
+                for (j = 0; j < config.fft_sz; j++) {
+                    char buf[256];
+                    double a = fo[i][0];
+                    double b = fo[i][1];
+                    i = (j + config.fft_sz / 2) % config.fft_sz;
+                    fprintf(stderr, "bin %03i %9s %+8.2g %+8.2g %+8.2g %6.1f\n", i, hzstring(bin_freq(i), 5, buf, sizeof(buf)), a, b,
+                            hypot(a, b), atan2(b, a) * 180.0 / M_PI);
+                }
+                fputs("\033[32A", stderr);
             }
-            fputs("\033[33A", stderr);
+            fputs("\033[1A", stderr);
             fputs(CURSOR_ON, stderr);
         }
     }
