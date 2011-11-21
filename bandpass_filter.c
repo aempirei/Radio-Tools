@@ -35,17 +35,6 @@ fftw_complex *fi, *fo;
 double *samples1, *samples2, *samples0;
 size_t samples_sz;
 
-void
-fft_abs(fftw_complex * fft)
-{
-    int i;
-
-    for (i = 0; i < config.fft_sz; i++) {
-        fft[i][0] = hypot(fft[i][0], fft[i][1]);
-        fft[i][1] = 0.0;
-    }
-}
-
 double
 bin_freq(unsigned int binno)
 {
@@ -78,61 +67,6 @@ fft_bandpass_filter(fftw_complex * fft, long long filter_bandwidth)
     }
 }
 
-double
-fft_real_weight(fftw_complex * fft)
-{
-
-    double sum = 0;
-    int i;
-
-    /*
-     * i skip the first bin because its the relative gain and i dont want that
-     */
-
-    for (i = 1; i * 2 < config.fft_sz; i++)
-        sum += fft[i][0];
-
-    /*
-     * we only want half the weight due to the symmetry of the FFT
-     * im not sure of we want to use i < config.fft_sz / 2 in the for loop or what
-     */
-
-    return sum;
-}
-
-double
-fft_max(fftw_complex * fft)
-{
-    int i;
-
-    double max = 0.0;
-
-    for (i = 1; i < config.fft_sz; i++)
-        if (fft[i][0] > max)
-            max = fft[i][0];
-
-    return max;
-}
-
-void
-fft_normalize(fftw_complex * fft)
-{
-
-    int i;
-
-    double max = fft_max(fft);
-
-    fft[0][0] = 0.0;
-    fft[0][1] = 0.0;
-
-    if (max != 0.0) {
-        for (i = 0; i < config.fft_sz; i++)
-            fft[i][0] /= max;
-        for (; i < config.fft_sz; i++)
-            fft[i][0] = 0.0;
-    }
-}
-
 void
 usage(const char *arg0)
 {
@@ -149,61 +83,6 @@ usage(const char *arg0)
     putchar('\n');
 }
 
-char *
-hzstring(double v, int res, char *buf, size_t buf_sz)
-{
-
-    if (abs(v) < 1000) {
-        snprintf(buf, buf_sz, "%.0fhz", v);
-    } else if (abs(v) < 1000000) {
-        snprintf(buf, buf_sz, "%.*gkhz", res, v / 1000);
-    } else if (abs(v) < 1000000000) {
-        snprintf(buf, buf_sz, "%.*gmhz", res, v / 1000000);
-    } else {
-        snprintf(buf, buf_sz, "%.*gghz", res, v / 1000000000);
-    }
-
-    return buf;
-}
-
-int
-bitcount(unsigned long v)
-{
-    int a = 0;
-    while (v) {
-        a += (v & 1);
-        v >>= 1;
-    }
-    return a;
-}
-
-void
-fatal(const char *format, ...)
-{
-    va_list ap;
-    va_start(ap, format);
-    vprintf(format, ap);
-    va_end(ap);
-    exit(EXIT_FAILURE);
-}
-
-long long
-hztoll(const char *str)
-{
-    long long ll;
-    int n;
-
-    sscanf(str, "%Ld %n", &ll, &n);
-
-    if (toupper(str[n]) == 'K')
-        return ll * 1000;
-    if (toupper(str[n]) == 'M')
-        return ll * 1000000;
-    if (toupper(str[n]) == 'G')
-        return ll * 1000000000;
-    return ll;
-}
-
 void
 exit_handler()
 {
@@ -216,7 +95,7 @@ exit_handler()
 
     if (config.verbose) {
         fputs(CURSOR_ON, stderr);
-		  fputs("\033[100B", stderr);
+        fputs("\033[100B", stderr);
         fputs("\ngoodbye...\n", stderr);
     }
 }
@@ -344,7 +223,7 @@ main(int argc, char **argv)
 
         if (config.verbose) {
             if (config.verbose > 1) {
-					fprintf(stderr, "%3s %9s %8s %8s %8s %6s\n", "bin", "frequency", "Re", "Img", "|x|", "angle");
+                fprintf(stderr, "%3s %9s %8s %8s %8s %6s\n", "bin", "frequency", "Re", "Img", "|x|", "angle");
                 for (j = 0; j < config.fft_sz; j++) {
                     i = (j + config.fft_sz / 2) % config.fft_sz;
                     char buf[256];
@@ -353,7 +232,7 @@ main(int argc, char **argv)
                     fprintf(stderr, "%03i %9s %+8.2g %+8.2g %+8.2g %6.1f\n", i, hzstring(bin_freq(i), 5, buf, sizeof(buf)), a, b,
                             hypot(b, a), atan2(b, a) * 180.0 / M_PI);
                 }
-					 fprintf(stderr, "\033[%dA", config.fft_sz + 1);
+                fprintf(stderr, "\033[%dA", config.fft_sz + 1);
             }
             fputs("\033[1A", stderr);
             fputs(CURSOR_ON, stderr);

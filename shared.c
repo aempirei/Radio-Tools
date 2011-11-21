@@ -2,10 +2,67 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdarg.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <ctype.h>
 #include <errno.h>
 #include "shared.h"
+
+char *
+hzstring(double v, int res, char *buf, size_t buf_sz)
+{
+
+    if (abs(v) < 1000) {
+        snprintf(buf, buf_sz, "%.0fhz", v);
+    } else if (abs(v) < 1000000) {
+        snprintf(buf, buf_sz, "%.*gkhz", res, v / 1000);
+    } else if (abs(v) < 1000000000) {
+        snprintf(buf, buf_sz, "%.*gmhz", res, v / 1000000);
+    } else {
+        snprintf(buf, buf_sz, "%.*gghz", res, v / 1000000000);
+    }
+
+    return buf;
+}
+
+long long
+hztoll(const char *str)
+{
+    long long ll;
+    int n;
+
+    sscanf(str, "%Ld %n", &ll, &n);
+
+    if (toupper(str[n]) == 'K')
+        return ll * 1000;
+    if (toupper(str[n]) == 'M')
+        return ll * 1000000;
+    if (toupper(str[n]) == 'G')
+        return ll * 1000000000;
+    return ll;
+}
+
+int
+bitcount(unsigned long v)
+{
+    int a = 0;
+    while (v) {
+        a += (v & 1);
+        v >>= 1;
+    }
+    return a;
+}
+
+void
+fatal(const char *format, ...)
+{
+    va_list ap;
+    va_start(ap, format);
+    vprintf(format, ap);
+    va_end(ap);
+    exit(EXIT_FAILURE);
+}
 
 ssize_t
 write2(int fd, void *buf, size_t count)
