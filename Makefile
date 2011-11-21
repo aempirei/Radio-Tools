@@ -7,7 +7,7 @@ TARGETS = bandpass_filter
 
 all: $(TARGETS) $(MODULES) $(SCRIPTS)
 
-bandpass_filter: bandpass_filter.o
+bandpass_filter: bandpass_filter.o shared.o
 	$(CC) $(CCFLAGS) -o $@ $^
 
 clean:
