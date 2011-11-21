@@ -344,15 +344,16 @@ main(int argc, char **argv)
 
         if (config.verbose) {
             if (config.verbose > 1) {
+					fprintf(stderr, "%3s %9s %8s %8s %8s %6s\n", "bin", "frequency", "Re", "Img", "|x|", "angle");
                 for (j = 0; j < config.fft_sz; j++) {
+                    i = (j + config.fft_sz / 2) % config.fft_sz;
                     char buf[256];
                     double a = fo[i][0];
                     double b = fo[i][1];
-                    i = (j + config.fft_sz / 2) % config.fft_sz;
-                    fprintf(stderr, "bin %03i %9s %+8.2g %+8.2g %+8.2g %6.1f\n", i, hzstring(bin_freq(i), 5, buf, sizeof(buf)), a, b,
-                            hypot(a, b), atan2(b, a) * 180.0 / M_PI);
+                    fprintf(stderr, "%03i %9s %+8.2g %+8.2g %+8.2g %6.1f\n", i, hzstring(bin_freq(i), 5, buf, sizeof(buf)), a, b,
+                            hypot(b, a), atan2(b, a) * 180.0 / M_PI);
                 }
-                fputs("\033[32A", stderr);
+					 fprintf(stderr, "\033[%dA", config.fft_sz + 1);
             }
             fputs("\033[1A", stderr);
             fputs(CURSOR_ON, stderr);
