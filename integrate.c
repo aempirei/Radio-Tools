@@ -25,9 +25,7 @@ struct config {
     int verbose;
 } config;
 
-void
-usage(const char *arg0)
-{
+void usage(const char *arg0) {
     printf("\nusage: %s [options] < input_samples.dat > output_samples.dat\n\n", arg0);
 
     printf("\t-h           show this help\n");
@@ -36,9 +34,7 @@ usage(const char *arg0)
     putchar('\n');
 }
 
-void
-exit_handler()
-{
+void exit_handler() {
     if (config.verbose) {
         fputs(CURSOR_ON, stderr);
         fputs("\033[100B", stderr);
@@ -46,22 +42,18 @@ exit_handler()
     }
 }
 
-void
-sig_handler(int signo)
-{
+void sig_handler(int signo) {
     if (signo == SIGINT) {
         exit(EXIT_FAILURE);
     }
 }
 
-int
-main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     int opt;
 
     double dx;
 
-	 double sigmadx;
+    double sigmadx;
 
     config.verbose = 0;
 
@@ -102,7 +94,7 @@ main(int argc, char **argv)
             break;
         }
 
-		  sigmadx += dx;
+        sigmadx += dx;
 
         n = write2(1, &sigmadx, sizeof(sigmadx));
         if (n != sizeof(sigmadx)) {

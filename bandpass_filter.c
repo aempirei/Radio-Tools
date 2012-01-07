@@ -35,9 +35,7 @@ fftw_complex *fi, *fo;
 double *samples1, *samples2, *samples0;
 size_t samples_sz;
 
-double
-bin_freq(unsigned int binno)
-{
+double bin_freq(unsigned int binno) {
 
     int n = (binno + config.fft_sz / 2) % config.fft_sz;
 
@@ -52,14 +50,13 @@ bin_freq(unsigned int binno)
     return a + b;
 }
 
-void
-fft_bandpass_filter(fftw_complex * fft, long long filter_bandwidth)
-{
+void fft_bandpass_filter(fftw_complex * fft, long long filter_bandwidth) {
 
     int i;
 
     for (i = 0; i < config.fft_sz; i++) {
         double hz = bin_freq(i);
+
         if ((hz < (double)(config.frequency - filter_bandwidth / 2)) || (hz > (double)(config.frequency + filter_bandwidth / 2))) {
             fft[i][0] = 0.0;
             fft[i][1] = 0.0;
@@ -67,9 +64,7 @@ fft_bandpass_filter(fftw_complex * fft, long long filter_bandwidth)
     }
 }
 
-void
-usage(const char *arg0)
-{
+void usage(const char *arg0) {
     printf("\nusage: %s [options] center bandwidth filter bins < input_samples.dat > output_samples.dat\n\n", arg0);
 
     printf("\tcenter       center frequency in hz or khz or mhz or ghz\n");
@@ -83,9 +78,7 @@ usage(const char *arg0)
     putchar('\n');
 }
 
-void
-exit_handler()
-{
+void exit_handler() {
 
     fftw_destroy_plan(forward);
     fftw_destroy_plan(reverse);
@@ -100,17 +93,13 @@ exit_handler()
     }
 }
 
-void
-sig_handler(int signo)
-{
+void sig_handler(int signo) {
     if (signo == SIGINT) {
         exit(EXIT_FAILURE);
     }
 }
 
-int
-main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     int i, j, opt;
     int offset;
 
@@ -149,6 +138,7 @@ main(int argc, char **argv)
 
     if (config.verbose) {
         char buf[256];
+
         fprintf(stderr, "fft bin count: %d\n", config.fft_sz);
         fprintf(stderr, "center frequency: %s\n", hzstring(config.frequency, 3, buf, sizeof(buf)));
         fprintf(stderr, "singal bandwidth: %s\n", hzstring(config.bandwidth, 3, buf, sizeof(buf)));
@@ -229,6 +219,7 @@ main(int argc, char **argv)
                     char buf[256];
                     double a = fo[i][0];
                     double b = fo[i][1];
+
                     fprintf(stderr, "%03i %9s %+8.2g %+8.2g %+8.2g %6.1f\n", i, hzstring(bin_freq(i), 5, buf, sizeof(buf)), a, b,
                             hypot(b, a), atan2(b, a) * 180.0 / M_PI);
                 }

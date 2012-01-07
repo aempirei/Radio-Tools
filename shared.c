@@ -9,9 +9,7 @@
 #include <errno.h>
 #include "shared.h"
 
-char *
-hzstring(double v, int res, char *buf, size_t buf_sz)
-{
+char *hzstring(double v, int res, char *buf, size_t buf_sz) {
 
     if (abs(v) < 1000) {
         snprintf(buf, buf_sz, "%.0fhz", v);
@@ -26,9 +24,7 @@ hzstring(double v, int res, char *buf, size_t buf_sz)
     return buf;
 }
 
-long long
-hztoll(const char *str)
-{
+long long hztoll(const char *str) {
     long long ll;
     int n;
 
@@ -43,10 +39,9 @@ hztoll(const char *str)
     return ll;
 }
 
-int
-bitcount(unsigned long v)
-{
+int bitcount(unsigned long v) {
     int a = 0;
+
     while (v) {
         a += (v & 1);
         v >>= 1;
@@ -54,21 +49,19 @@ bitcount(unsigned long v)
     return a;
 }
 
-void
-fatal(const char *format, ...)
-{
+void fatal(const char *format, ...) {
     va_list ap;
+
     va_start(ap, format);
     vprintf(format, ap);
     va_end(ap);
     exit(EXIT_FAILURE);
 }
 
-ssize_t
-write2(int fd, void *buf, size_t count)
-{
+ssize_t write2(int fd, void *buf, size_t count) {
     size_t nleft, nwrite;
     ssize_t n;
+
     nleft = count;
     nwrite = 0;
     do {
@@ -83,9 +76,7 @@ write2(int fd, void *buf, size_t count)
     return (nwrite);
 }
 
-int
-read2(int fd, void *data, size_t len)
-{
+int read2(int fd, void *data, size_t len) {
     int n, left, done;
 
     left = len;
@@ -107,9 +98,7 @@ read2(int fd, void *data, size_t len)
     return done;
 }
 
-void *
-loadfile(const char *fn, size_t * len)
-{
+void *loadfile(const char *fn, size_t * len) {
     int fd, e;
     struct stat st;
     void *data;
@@ -149,10 +138,9 @@ loadfile(const char *fn, size_t * len)
     return (data);
 }
 
-int
-savefile(const char *fn, void *data, size_t len)
-{
+int savefile(const char *fn, void *data, size_t len) {
     int fd, e;
+
     fd = open(fn, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd == -1)
         return -1;

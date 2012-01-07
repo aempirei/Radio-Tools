@@ -8,4 +8,11 @@ void fatal(const char *format, ...);
 int bitcount(unsigned long v);
 char * hzstring(double v, int res, char *buf, size_t buf_sz);
 long long hztoll(const char *str);
+
+typedef struct complex_sample {
+	double r;
+	double i;
+} complex_sample_t;
+
+
 #endif

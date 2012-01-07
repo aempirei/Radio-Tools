@@ -1,7 +1,7 @@
 CC = gcc
 CCFLAGS = -Wall -I. -lm -lfftw3 -g -ggdb
 CFLAGS = -Wall -I.  -g -ggdb
-TARGETS = bandpass_filter differentiate integrate
+TARGETS = bandpass_filter differentiate integrate abs
 
 .PHONY: all clean wipe
 
@@ -14,6 +14,9 @@ differentiate: differentiate.o shared.o
 	$(CC) $(CCFLAGS) -o $@ $^
 
 bandpass_filter: bandpass_filter.o shared.o
+	$(CC) $(CCFLAGS) -o $@ $^
+
+abs: abs.o shared.o
 	$(CC) $(CCFLAGS) -o $@ $^
 
 clean:
