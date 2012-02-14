@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
 	 	peak = peaki;
 	 }
 
-	 printf("peakr %f peaki %f peak %f rmsr %f rmsi %f rms %f\n", peakr, peaki, peak, sqrt(rmsr / k), sqrt(rmsi / k), sqrt((rmsi + rmsr) / (2.0 * k)));
+	 printf("k %lu peakr %f peaki %f peak %f rmsr %f rmsi %f rms %f\n", k, peakr, peaki, peak, sqrt(rmsr / k), sqrt(rmsi / k), sqrt((rmsi + rmsr) / (2.0 * k)));
 
     exit(EXIT_SUCCESS);
 }

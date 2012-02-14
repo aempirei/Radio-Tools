@@ -1,4 +1,6 @@
-Radio-Tools - Tools for command-line processing of rf signals
+Radio-Tools - Tools for command-line processing of rf signals.
+
+There are tools for processing real-valued data and complex I/Q data.
 
 Copyright(c) 2011 by Christopher Abad
 
