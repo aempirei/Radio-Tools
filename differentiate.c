@@ -7,9 +7,7 @@
 
 #include "shared.h"
 
-#define MIN(a,b) ((a) < (b) ? (a) : (b))
-
-struct config {
+volatile struct config {
     int verbose;
 } config;
 

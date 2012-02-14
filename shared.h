@@ -14,5 +14,7 @@ typedef struct complex_sample {
 	double i;
 } complex_sample_t;
 
+#define MAX(a,b)	((a)>(b)?(a):(b))
+#define MIN(a,b)	((a)<(b)?(a):(b))
 
 #endif

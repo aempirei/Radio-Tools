@@ -15,13 +15,12 @@
 #include <time.h>
 #include "shared.h"
 
-#define MIN(a,b) ((a) < (b) ? (a) : (b))
 #define CURSOR_ON "\033[?25h"
 #define CURSOR_OFF "\033[?25l"
 #define RETURN_HOME "\033[H"
 #define CLR_SCR "\033[2J"
 
-struct config {
+volatile struct config {
     int verbose;
 } config;
 
